@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AfriGenius - Assistant IA</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 10px; }
+        textarea { width: 100%; height: 150px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #1a5276; color: white; border: none; border-radius: 5px; margin: 5px; }
+        .result-box { background: #f0f0f0; padding: 10px; white-space: pre-wrap; border: 1px solid #ccc; min-height: 50px; }
+        #format-buttons { display: none; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h1>AfriGenius Bot</h1>
+    <p>Envoie ton exercice de Physique, Chimie ou Maths</p>
+    <textarea id="question" placeholder="Tape ton exercice ici..."></textarea>
+    <br>
+    <button onclick="corriger()">Corriger</button>
+    <h2>Correction :</h2>
+    <div id="reponse" class="result-box"></div>
+
+    <div id="format-buttons">
+        <h3>Télécharger :</h3>
+        <button onclick="telechargerPDF()">📄 PDF</button>
+        <button onclick="telechargerWord()">📝 Word</button>
+        <button onclick="telechargerTXT()">📃 Texte</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script>
+        const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyyHUO5l-P1bHmrDdyclnljgU0MwsBnhhNarQiMWCewixflFuW0BgqjYjrPmD_jgwU_/exec";
+
+        let currentCorrectionHTML = "";
+
+        async function corriger() {
+            const question = document.getElementById("question").value;
+            if (!question) return alert("Écris un exercice !");
+            document.getElementById("reponse").innerHTML = "⏳ Correction en cours...";
+            document.getElementById("format-buttons").style.display = "none";
+
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question: question })
+                });
+                const data = await response.json();
+                const text = data.result || data.error || "Erreur.";
+                document.getElementById("reponse").innerHTML = text;
+                currentCorrectionHTML = text;
+                document.getElementById("format-buttons").style.display = "block";
+            } catch (e) {
+                document.getElementById("reponse").innerText = "Erreur : " + e.message;
+                currentCorrectionHTML = "";
+            }
+        }
+
+        function getFullHTML(correctionHTML) {
+            const question = document.getElementById("question").value;
+            return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>AfriGenius - Correction</title>
+<style>
+body{font-family:Arial,sans-serif;padding:40px;color:#1a1a1a;line-height:2;max-width:800px;margin:0 auto;}
+.header{background:linear-gradient(135deg,#1a5276,#2874a6);color:white;padding:25px;text-align:center;border-radius:10px;margin-bottom:30px;}
+.header h1{margin:0;font-size:24px;}
+.result{background:#d4efdf;border:2px solid #1e8449;border-radius:6px;padding:12px 20px;margin:15px 0;font-weight:bold;font-size:16px;text-align:center;color:#1e8449;}
+.footer{text-align:center;color:#888;font-size:11px;margin-top:40px;border-top:1px solid #ddd;padding-top:20px;}
+</style></head>
+<body>
+<div class="header"><h1>🌍 AfriGenius Bot</h1><p>Programme officiel Togo</p></div>
+<h2>Exercice</h2><pre>${question.replace(/\n/g, "<br>")}</pre>
+<h2>Correction</h2>${correctionHTML}
+<div class="footer">AfriGenius Bot - Pour les élèves africains</div>
+</body></html>`;
+        }
+
+        function telechargerPDF() {
+            const html = getFullHTML(currentCorrectionHTML);
+            const element = document.createElement("div");
+            element.innerHTML = html;
+            document.body.appendChild(element);
+            html2pdf().set({ filename: "correction_afrigenius.pdf", margin: 10, html2canvas: { scale: 2 } }).from(element).save().then(() => element.remove());
+        }
+
+        function telechargerWord() {
+            const html = getFullHTML(currentCorrectionHTML);
+            const blob = new Blob([html], { type: "application/msword" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "correction_afrigenius.doc";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function telechargerTXT() {
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = currentCorrectionHTML;
+            let texte = tempDiv.innerText || tempDiv.textContent || "";
+            const question = document.getElementById("question").value;
+            const contenu = "AFRIGENIUS BOT - CORRECTION\n\nEXERCICE :\n" + question + "\n\nCORRECTION :\n" + texte;
+            const blob = new Blob([contenu], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "correction_afrigenius.txt";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+  </html>
+  
