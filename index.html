@@ -81,6 +81,15 @@
             color: #1e8449;
             text-align: center;
         }
+        .error-detail {
+            background: #fdecea;
+            color: #c0392b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            border-left: 4px solid #c0392b;
+        }
         #format-buttons { display: none; margin-top: 5px; }
         .loading { color: #888; font-style: italic; }
         .tag {
@@ -95,6 +104,14 @@
             border: 1px solid #aed6f1;
         }
         .footer { text-align: center; color: #aaa; font-size: 11px; margin-top: 20px; }
+        .warning {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #856404;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -118,11 +135,15 @@
 
     <div class="image-zone" onclick="document.getElementById('input-image').click()">
         <p>📷 Appuie ici pour envoyer une photo de ton exercice</p>
-        <p style="font-size:11px; color:#888;">JPG, PNG acceptés</p>
+        <p style="font-size:11px; color:#888;">JPG, PNG (max 2 Mo recommandé)</p>
     </div>
     <input type="file" id="input-image" accept="image/*" onchange="previewImage(event)">
     <img id="preview-img" alt="Aperçu">
     <button id="btn-remove-img" class="btn-danger" onclick="removeImage()" style="display:none; margin-top:8px; width:100%;">❌ Supprimer la photo</button>
+
+    <div id="compte-gratuit-msg" class="warning" style="display:none;">
+        ⚠️ <strong>Compte gratuit Groq :</strong> limite de 30 requêtes/min. Si l'image est rejetée, décris l'exercice manuellement.
+    </div>
 
     <div class="btn-row">
         <button class="btn-primary" onclick="corriger()">✅ Corriger</button>
@@ -148,11 +169,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
-    // ⚠️ ATTENTION : Ne jamais exposer une clé API en production (côté client)
+    // ⚠️ Ne jamais exposer cette clé en production (utilisez un backend)
     const API_KEY = "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";
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
-    const TEXT_MODEL = "llama3-8b-8192";                    // Modèle texte (pas d'image)
-    const VISION_MODEL = "llama-3.2-11b-vision-preview";   // Modèle multimodal (texte + image)
+    const TEXT_MODEL = "llama3-8b-8192";
+    const VISION_MODEL = "llama-3.2-11b-vision-preview";
 
     const SYSTEM_PROMPT = `Tu es un professeur de sciences (physique, chimie, mathématiques) au lycée au Togo.
 Tu corriges comme au tableau : CALCULS DIRECTS, bien structurés, bien aérés.
@@ -178,7 +199,6 @@ RIGUEUR :
     let imageBase64 = null;
     let imageMimeType = null;
 
-    // Fonction simple d'échappement HTML
     function escapeHTML(str) {
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
@@ -190,6 +210,14 @@ RIGUEUR :
     function previewImage(event) {
         const file = event.target.files[0];
         if (!file) return;
+
+        // Limitation stricte pour compte gratuit : 2 Mo
+        if (file.size > 2 * 1024 * 1024) {
+            alert("L'image dépasse 2 Mo. Réduis sa taille ou décris l'exercice à la main (le compte gratuit a des limites).");
+            event.target.value = "";
+            return;
+        }
+
         imageMimeType = file.type;
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -198,6 +226,11 @@ RIGUEUR :
             preview.src = e.target.result;
             preview.style.display = "block";
             document.getElementById("btn-remove-img").style.display = "block";
+            document.getElementById("compte-gratuit-msg").style.display = "block";
+        };
+        reader.onerror = () => {
+            alert("Erreur de lecture du fichier.");
+            removeImage();
         };
         reader.readAsDataURL(file);
     }
@@ -209,6 +242,7 @@ RIGUEUR :
         document.getElementById("preview-img").src = "";
         document.getElementById("btn-remove-img").style.display = "none";
         document.getElementById("input-image").value = "";
+        document.getElementById("compte-gratuit-msg").style.display = "none";
     }
 
     function clearAll() {
@@ -221,30 +255,27 @@ RIGUEUR :
 
     async function corriger() {
         const question = document.getElementById("question").value.trim();
-        if (!question && !imageBase64) return alert("Écris un exercice ou envoie une photo !");
-        document.getElementById("reponse").innerHTML = "<span class='loading'>⏳ Correction en cours...</span>";
+        if (!question && !imageBase64) {
+            alert("Écris un exercice ou envoie une photo !");
+            return;
+        }
+
+        const reponseDiv = document.getElementById("reponse");
+        reponseDiv.innerHTML = "<span class='loading'>⏳ Correction en cours...</span>";
         document.getElementById("format-buttons").style.display = "none";
 
-        // Choix du modèle et construction du contenu utilisateur
         let model = TEXT_MODEL;
         let userContent;
 
         if (imageBase64) {
             model = VISION_MODEL;
-            // Message multimodal : tableau de parties
             userContent = [];
-            if (question) {
-                userContent.push({ type: "text", text: "Corrige l'exercice suivant :\n" + question });
-            } else {
-                userContent.push({ type: "text", text: "Corrige l'exercice sur la photo." });
-            }
-            // Ajout de l'image en base64
+            userContent.push({ type: "text", text: question ? "Corrige l'exercice suivant :\n" + question : "Corrige l'exercice sur la photo." });
             userContent.push({
                 type: "image_url",
                 image_url: { url: `data:${imageMimeType};base64,${imageBase64}` }
             });
         } else {
-            // Texte seul
             userContent = "Corrige l'exercice suivant :\n" + question;
         }
 
@@ -262,25 +293,58 @@ RIGUEUR :
                         { role: "user", content: userContent }
                     ],
                     temperature: 0.1,
-                    max_tokens: 4000
+                    max_tokens: model === VISION_MODEL ? 1024 : 4000  // limite plus basse pour l'image
                 })
             });
 
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                const msg = errData.error?.message || `Erreur HTTP ${response.status}`;
+                throw new Error(msg);
+            }
+
             const data = await response.json();
-            if (data.error) throw new Error(data.error.message || "Erreur API");
-            const text = data.choices?.[0]?.message?.content || "Erreur de correction.";
-            document.getElementById("reponse").innerHTML = text;
-            currentCorrectionHTML = text;
+            if (!data.choices?.[0]?.message?.content) throw new Error("Réponse vide de l'API");
+
+            reponseDiv.innerHTML = data.choices[0].message.content;
+            currentCorrectionHTML = reponseDiv.innerHTML;
             document.getElementById("format-buttons").style.display = "block";
         } catch (e) {
-            document.getElementById("reponse").innerText = "Erreur : " + e.message;
+            console.error("Erreur API :", e);
+            let conseil = "Vérifie ta connexion et réessaie.";
+            if (e.message.includes("429")) conseil = "Trop de requêtes. Patientez une minute (compte gratuit limité à 30 req/min).";
+            else if (e.message.includes("401")) conseil = "Clé API invalide. Vérifie-la.";
+            else if (e.message.includes("model_not_found") || e.message.includes("vision")) {
+                conseil = "Le modèle vision n'est pas accessible sur ton compte gratuit. Décris l'exercice à la main.";
+                // Proposer de réessayer sans l'image
+                if (imageBase64) {
+                    reponseDiv.innerHTML = `
+                        <div class="error-detail">
+                            ❌ <strong>Erreur modèle vision</strong><br>
+                            ${e.message}<br>
+                            <em>${conseil}</em>
+                        </div>
+                        <button onclick="removeImage(); corriger();" style="margin-top:10px;">🔄 Réessayer sans photo</button>
+                    `;
+                    currentCorrectionHTML = "";
+                    document.getElementById("format-buttons").style.display = "none";
+                    return;
+                }
+            }
+            reponseDiv.innerHTML = `
+                <div class="error-detail">
+                    ❌ <strong>Erreur de correction</strong><br>
+                    ${e.message}<br>
+                    <em>${conseil}</em>
+                </div>
+            `;
             currentCorrectionHTML = "";
+            document.getElementById("format-buttons").style.display = "none";
         }
     }
 
     function getFullHTML(correctionHTML) {
         const question = document.getElementById("question").value;
-        // Échapper la question pour éviter toute injection HTML
         const safeQuestion = escapeHTML(question).replace(/\n/g, "<br>");
         return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>AfriGenius - Correction</title>
@@ -299,6 +363,7 @@ td,th{border:1px solid #999;padding:6px;text-align:center;}
     }
 
     function telechargerPDF() {
+        if (!currentCorrectionHTML) return alert("Aucune correction à exporter.");
         const element = document.createElement("div");
         element.innerHTML = getFullHTML(currentCorrectionHTML);
         document.body.appendChild(element);
@@ -306,6 +371,7 @@ td,th{border:1px solid #999;padding:6px;text-align:center;}
     }
 
     function telechargerWord() {
+        if (!currentCorrectionHTML) return alert("Aucune correction à exporter.");
         const blob = new Blob([getFullHTML(currentCorrectionHTML)], { type: "application/msword" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -314,6 +380,7 @@ td,th{border:1px solid #999;padding:6px;text-align:center;}
     }
 
     function telechargerTXT() {
+        if (!currentCorrectionHTML) return alert("Aucune correction à exporter.");
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = currentCorrectionHTML;
         const question = document.getElementById("question").value;
