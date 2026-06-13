@@ -43,7 +43,6 @@
             font-family: Arial, sans-serif;
         }
         textarea:focus { outline: none; border-color: #2874a6; }
-
         .image-zone {
             border: 2px dashed #2874a6;
             border-radius: 8px;
@@ -52,31 +51,15 @@
             cursor: pointer;
             margin-top: 10px;
             background: #eaf4fb;
-            transition: background 0.2s;
         }
-        .image-zone:hover { background: #d6eaf8; }
         .image-zone p { color: #2874a6; font-size: 14px; margin-top: 5px; }
-        #preview-img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 10px;
-            display: none;
-        }
+        #preview-img { max-width: 100%; border-radius: 8px; margin-top: 10px; display: none; }
         #input-image { display: none; }
-
         .btn-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-        button {
-            padding: 11px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        button { padding: 11px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; }
         .btn-primary { background: #1a5276; color: white; flex: 1; }
         .btn-secondary { background: #e8f4fd; color: #1a5276; }
         .btn-danger { background: #fdecea; color: #c0392b; }
-
         .result-box {
             background: #f9f9f9;
             border: 1px solid #ddd;
@@ -86,17 +69,8 @@
             font-size: 14px;
             line-height: 1.8;
         }
-        .result-box table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 10px 0;
-            font-size: 13px;
-        }
-        .result-box table td, .result-box table th {
-            border: 1px solid #999;
-            padding: 6px;
-            text-align: center;
-        }
+        .result-box table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+        .result-box table td, .result-box table th { border: 1px solid #999; padding: 6px; text-align: center; }
         .result-box .result {
             background: #d4efdf;
             border: 2px solid #1e8449;
@@ -107,10 +81,8 @@
             color: #1e8449;
             text-align: center;
         }
-
         #format-buttons { display: none; margin-top: 5px; }
         .loading { color: #888; font-style: italic; }
-
         .tag {
             display: inline-block;
             background: #eaf4fb;
@@ -122,13 +94,7 @@
             cursor: pointer;
             border: 1px solid #aed6f1;
         }
-        .tag:hover { background: #d6eaf8; }
-        .footer {
-            text-align: center;
-            color: #aaa;
-            font-size: 11px;
-            margin-top: 20px;
-        }
+        .footer { text-align: center; color: #aaa; font-size: 11px; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -138,7 +104,6 @@
     <p>Correction IA de Physique, Chimie et Maths • Programme Togo</p>
 </div>
 
-<!-- Zone de saisie -->
 <div class="card">
     <h3>📝 Ton exercice</h3>
     <textarea id="question" placeholder="Tape ton exercice ici..."></textarea>
@@ -151,13 +116,12 @@
         <span class="tag" onclick="setExemple('Équilibre la réaction : H₂ + O₂ → H₂O')">Chimie</span>
     </div>
 
-    <!-- Zone image -->
     <div class="image-zone" onclick="document.getElementById('input-image').click()">
         <p>📷 Appuie ici pour envoyer une photo de ton exercice</p>
         <p style="font-size:11px; color:#888;">JPG, PNG acceptés</p>
     </div>
     <input type="file" id="input-image" accept="image/*" onchange="previewImage(event)">
-    <img id="preview-img" alt="Aperçu de l'image">
+    <img id="preview-img" alt="Aperçu">
     <button id="btn-remove-img" class="btn-danger" onclick="removeImage()" style="display:none; margin-top:8px; width:100%;">❌ Supprimer la photo</button>
 
     <div class="btn-row">
@@ -166,11 +130,9 @@
     </div>
 </div>
 
-<!-- Résultat -->
 <div class="card">
     <h3>📖 Correction</h3>
     <div id="reponse" class="result-box">La correction apparaîtra ici...</div>
-
     <div id="format-buttons">
         <h3 style="margin-top:15px; margin-bottom:8px;">⬇️ Télécharger :</h3>
         <div class="btn-row">
@@ -186,7 +148,30 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
-    const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyyHUO5l-P1bHmrDdyclnljgU0MwsBnhhNarQiMWCewixflFuW0BgqjYjrPmD_jgwU_/exec";
+    const API_KEY = "AIzaSyAlaooIuXy6h4NlkbDJByhHRJb684VsknU";
+    const MODEL = "gemini-2.0-flash";
+    const SYSTEM_PROMPT = `Tu es un professeur de sciences (physique, chimie, mathématiques) au lycée au Togo.
+Tu corriges comme au tableau : CALCULS DIRECTS, bien structurés, bien aérés.
+
+FORMAT OBLIGATOIRE EN HTML PUR :
+- Chaque question principale commence par <h3>1)</h3>, <h3>2)</h3> etc.
+- Chaque étape de calcul dans un <p> séparé. Une étape = une ligne.
+- Formules : <sup> exposants, <sub> indices, Unicode (α, β, ∫, √, ×, ÷, ≤, ≥, ∈, →).
+- Résultat final de chaque question dans <div class='result'>.
+
+TABLEAUX OBLIGATOIRES :
+- Pour toute étude de signe, tableau de variations ou tableau de valeurs : utilise un vrai tableau HTML.
+
+STYLE OBLIGATOIRE :
+- INTERDIT : longs paragraphes explicatifs.
+- INTERDIT : répéter l'énoncé.
+- AUTORISÉ : une courte intro max par question.
+- Calculs ligne par ligne, comme au tableau.
+
+RIGUEUR :
+- N'invente jamais une donnée ou une formule.
+- Corrige toujours, même si l'énoncé est imparfait.
+- Indique les unités dans les résultats numériques.`;
 
     let currentCorrectionHTML = "";
     let imageBase64 = null;
@@ -229,121 +214,84 @@
     }
 
     async function corriger() {
-    const question = document.getElementById("question").value.trim();
-
-    if (!question && !imageBase64) {
-        alert("Écris un exercice ou envoie une photo !");
-        return;
-    }
-
-    document.getElementById("reponse").innerHTML =
-        "<span class='loading'>⏳ Correction en cours...</span>";
-
-    document.getElementById("format-buttons").style.display = "none";
-
-    try {
-
-        const body = {
-            question: question || "Corrige l'exercice sur cette image."
-        };
-
-        if (imageBase64) {
-            body.image = imageBase64;
-            body.mimeType = imageMimeType;
-        }
-
-        const response = await fetch(BACKEND_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-        });
-
-        const text = await response.text();
-
-        let data;
+        const question = document.getElementById("question").value;
+        if (!question && !imageBase64) return alert("Écris un exercice ou envoie une photo !");
+        document.getElementById("reponse").innerHTML = "<span class='loading'>⏳ Correction en cours...</span>";
+        document.getElementById("format-buttons").style.display = "none";
 
         try {
-            data = JSON.parse(text);
-        } catch {
-            throw new Error("Réponse invalide du serveur : " + text);
+            let parts = [];
+            parts.push({ text: "Corrige l'exercice suivant :\n" + (question || "Voir image") });
+            if (imageBase64) {
+                parts.push({ inline_data: { mime_type: imageMimeType, data: imageBase64 } });
+            }
+
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+                        contents: [{ parts: parts }],
+                        generationConfig: { temperature: 0.1, maxOutputTokens: 4000 }
+                    })
+                }
+            );
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erreur de correction.";
+            document.getElementById("reponse").innerHTML = text;
+            currentCorrectionHTML = text;
+            document.getElementById("format-buttons").style.display = "block";
+        } catch (e) {
+            document.getElementById("reponse").innerText = "Erreur : " + e.message;
+            currentCorrectionHTML = "";
         }
-
-        if (data.error) {
-            throw new Error(data.error);
-        }
-
-        document.getElementById("reponse").innerHTML =
-            data.result || "Aucune réponse.";
-
-        currentCorrectionHTML = data.result || "";
-
-        document.getElementById("format-buttons").style.display = "block";
-
-    } catch (err) {
-
-        document.getElementById("reponse").innerHTML =
-            "<b>Erreur :</b> " + err.message;
-
-        console.error(err);
     }
-}
 
     function getFullHTML(correctionHTML) {
         const question = document.getElementById("question").value;
         return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>AfriGenius - Correction</title>
+<html><head><meta charset="UTF-8"><title>AfriGenius - Correction</title>
 <style>
 body{font-family:Arial,sans-serif;padding:40px;color:#1a1a1a;line-height:2;max-width:800px;margin:0 auto;}
 .header{background:linear-gradient(135deg,#1a5276,#2874a6);color:white;padding:25px;text-align:center;border-radius:10px;margin-bottom:30px;}
-.header h1{margin:0;font-size:24px;}
-.result{background:#d4efdf;border:2px solid #1e8449;border-radius:6px;padding:12px 20px;margin:15px 0;font-weight:bold;font-size:16px;text-align:center;color:#1e8449;}
+.result{background:#d4efdf;border:2px solid #1e8449;border-radius:6px;padding:12px 20px;margin:15px 0;font-weight:bold;text-align:center;color:#1e8449;}
 table{border-collapse:collapse;width:100%;margin:10px 0;}
 td,th{border:1px solid #999;padding:6px;text-align:center;}
-.footer{text-align:center;color:#888;font-size:11px;margin-top:40px;border-top:1px solid #ddd;padding-top:20px;}
 </style></head>
 <body>
 <div class="header"><h1>🌍 AfriGenius Bot</h1><p>Programme officiel Togo</p></div>
 <h2>Exercice</h2><pre>${question.replace(/\n/g, "<br>")}</pre>
 <h2>Correction</h2>${correctionHTML}
-<div class="footer">AfriGenius Bot - Pour les élèves africains</div>
 </body></html>`;
     }
 
     function telechargerPDF() {
-        const html = getFullHTML(currentCorrectionHTML);
         const element = document.createElement("div");
-        element.innerHTML = html;
+        element.innerHTML = getFullHTML(currentCorrectionHTML);
         document.body.appendChild(element);
         html2pdf().set({ filename: "correction_afrigenius.pdf", margin: 10, html2canvas: { scale: 2 } }).from(element).save().then(() => element.remove());
     }
 
     function telechargerWord() {
-        const html = getFullHTML(currentCorrectionHTML);
-        const blob = new Blob([html], { type: "application/msword" });
-        const url = URL.createObjectURL(blob);
+        const blob = new Blob([getFullHTML(currentCorrectionHTML)], { type: "application/msword" });
         const a = document.createElement("a");
-        a.href = url;
+        a.href = URL.createObjectURL(blob);
         a.download = "correction_afrigenius.doc";
         a.click();
-        URL.revokeObjectURL(url);
     }
 
     function telechargerTXT() {
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = currentCorrectionHTML;
-        let texte = tempDiv.innerText || tempDiv.textContent || "";
         const question = document.getElementById("question").value;
-        const contenu = "AFRIGENIUS BOT - CORRECTION\n\nEXERCICE :\n" + question + "\n\nCORRECTION :\n" + texte;
-        const blob = new Blob([contenu], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
+        const contenu = "AFRIGENIUS BOT\n\nEXERCICE :\n" + question + "\n\nCORRECTION :\n" + (tempDiv.innerText || "");
         const a = document.createElement("a");
-        a.href = url;
+        a.href = URL.createObjectURL(new Blob([contenu], { type: "text/plain" }));
         a.download = "correction_afrigenius.txt";
         a.click();
-        URL.revokeObjectURL(url);
     }
 </script>
 </body>
