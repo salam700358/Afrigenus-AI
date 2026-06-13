@@ -43,6 +43,7 @@
             font-family: Arial, sans-serif;
         }
         textarea:focus { outline: none; border-color: #2874a6; }
+
         .image-zone {
             border: 2px dashed #2874a6;
             border-radius: 8px;
@@ -62,6 +63,7 @@
             display: none;
         }
         #input-image { display: none; }
+
         .btn-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
         button {
             padding: 11px 20px;
@@ -74,6 +76,7 @@
         .btn-primary { background: #1a5276; color: white; flex: 1; }
         .btn-secondary { background: #e8f4fd; color: #1a5276; }
         .btn-danger { background: #fdecea; color: #c0392b; }
+
         .result-box {
             background: #f9f9f9;
             border: 1px solid #ddd;
@@ -104,8 +107,10 @@
             color: #1e8449;
             text-align: center;
         }
+
         #format-buttons { display: none; margin-top: 5px; }
         .loading { color: #888; font-style: italic; }
+
         .tag {
             display: inline-block;
             background: #eaf4fb;
@@ -133,6 +138,7 @@
     <p>Correction IA de Physique, Chimie et Maths • Programme Togo</p>
 </div>
 
+<!-- Zone de saisie -->
 <div class="card">
     <h3>📝 Ton exercice</h3>
     <textarea id="question" placeholder="Tape ton exercice ici..."></textarea>
@@ -145,12 +151,13 @@
         <span class="tag" onclick="setExemple('Équilibre la réaction : H₂ + O₂ → H₂O')">Chimie</span>
     </div>
 
+    <!-- Zone image -->
     <div class="image-zone" onclick="document.getElementById('input-image').click()">
         <p>📷 Appuie ici pour envoyer une photo de ton exercice</p>
         <p style="font-size:11px; color:#888;">JPG, PNG acceptés</p>
     </div>
     <input type="file" id="input-image" accept="image/*" onchange="previewImage(event)">
-    <img id="preview-img" alt="Aperçu">
+    <img id="preview-img" alt="Aperçu de l'image">
     <button id="btn-remove-img" class="btn-danger" onclick="removeImage()" style="display:none; margin-top:8px; width:100%;">❌ Supprimer la photo</button>
 
     <div class="btn-row">
@@ -159,6 +166,7 @@
     </div>
 </div>
 
+<!-- Résultat -->
 <div class="card">
     <h3>📖 Correction</h3>
     <div id="reponse" class="result-box">La correction apparaîtra ici...</div>
@@ -221,34 +229,66 @@
     }
 
     async function corriger() {
-        const question = document.getElementById("question").value;
-        if (!question && !imageBase64) return alert("Écris un exercice ou envoie une photo !");
-        document.getElementById("reponse").innerHTML = "<span class='loading'>⏳ Correction en cours...</span>";
-        document.getElementById("format-buttons").style.display = "none";
+    const question = document.getElementById("question").value.trim();
+
+    if (!question && !imageBase64) {
+        alert("Écris un exercice ou envoie une photo !");
+        return;
+    }
+
+    document.getElementById("reponse").innerHTML =
+        "<span class='loading'>⏳ Correction en cours...</span>";
+
+    document.getElementById("format-buttons").style.display = "none";
+
+    try {
+
+        const body = {
+            question: question || "Corrige l'exercice sur cette image."
+        };
+
+        if (imageBase64) {
+            body.image = imageBase64;
+            body.mimeType = imageMimeType;
+        }
+
+        const response = await fetch(BACKEND_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        const text = await response.text();
+
+        let data;
 
         try {
-            const body = { question: question || "Corrige l'exercice sur cette image." };
-            if (imageBase64) {
-                body.image = imageBase64;
-                body.mimeType = imageMimeType;
-            }
-
-            const response = await fetch(BACKEND_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body)
-            });
-
-            const data = await response.json();
-            const text = data.result || data.error || "Erreur.";
-            document.getElementById("reponse").innerHTML = text;
-            currentCorrectionHTML = text;
-            document.getElementById("format-buttons").style.display = "block";
-        } catch (e) {
-            document.getElementById("reponse").innerText = "Erreur : " + e.message;
-            currentCorrectionHTML = "";
+            data = JSON.parse(text);
+        } catch {
+            throw new Error("Réponse invalide du serveur : " + text);
         }
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        document.getElementById("reponse").innerHTML =
+            data.result || "Aucune réponse.";
+
+        currentCorrectionHTML = data.result || "";
+
+        document.getElementById("format-buttons").style.display = "block";
+
+    } catch (err) {
+
+        document.getElementById("reponse").innerHTML =
+            "<b>Erreur :</b> " + err.message;
+
+        console.error(err);
     }
+}
 
     function getFullHTML(correctionHTML) {
         const question = document.getElementById("question").value;
