@@ -148,9 +148,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
+    // ⚠️ ATTENTION : Ne jamais exposer une clé API en production (côté client)
     const API_KEY = "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";
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
-    const MODEL = "llama3-8b-8192";
+    const TEXT_MODEL = "llama3-8b-8192";                    // Modèle texte (pas d'image)
+    const VISION_MODEL = "llama-3.2-11b-vision-preview";   // Modèle multimodal (texte + image)
 
     const SYSTEM_PROMPT = `Tu es un professeur de sciences (physique, chimie, mathématiques) au lycée au Togo.
 Tu corriges comme au tableau : CALCULS DIRECTS, bien structurés, bien aérés.
@@ -175,6 +177,11 @@ RIGUEUR :
     let currentCorrectionHTML = "";
     let imageBase64 = null;
     let imageMimeType = null;
+
+    // Fonction simple d'échappement HTML
+    function escapeHTML(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
 
     function setExemple(texte) {
         document.getElementById("question").value = texte;
@@ -213,10 +220,33 @@ RIGUEUR :
     }
 
     async function corriger() {
-        const question = document.getElementById("question").value;
+        const question = document.getElementById("question").value.trim();
         if (!question && !imageBase64) return alert("Écris un exercice ou envoie une photo !");
         document.getElementById("reponse").innerHTML = "<span class='loading'>⏳ Correction en cours...</span>";
         document.getElementById("format-buttons").style.display = "none";
+
+        // Choix du modèle et construction du contenu utilisateur
+        let model = TEXT_MODEL;
+        let userContent;
+
+        if (imageBase64) {
+            model = VISION_MODEL;
+            // Message multimodal : tableau de parties
+            userContent = [];
+            if (question) {
+                userContent.push({ type: "text", text: "Corrige l'exercice suivant :\n" + question });
+            } else {
+                userContent.push({ type: "text", text: "Corrige l'exercice sur la photo." });
+            }
+            // Ajout de l'image en base64
+            userContent.push({
+                type: "image_url",
+                image_url: { url: `data:${imageMimeType};base64,${imageBase64}` }
+            });
+        } else {
+            // Texte seul
+            userContent = "Corrige l'exercice suivant :\n" + question;
+        }
 
         try {
             const response = await fetch(API_URL, {
@@ -226,10 +256,10 @@ RIGUEUR :
                     "Authorization": `Bearer ${API_KEY}`
                 },
                 body: JSON.stringify({
-                    model: MODEL,
+                    model: model,
                     messages: [
                         { role: "system", content: SYSTEM_PROMPT },
-                        { role: "user", content: "Corrige l'exercice suivant :\n" + (question || "Voir image") }
+                        { role: "user", content: userContent }
                     ],
                     temperature: 0.1,
                     max_tokens: 4000
@@ -237,6 +267,7 @@ RIGUEUR :
             });
 
             const data = await response.json();
+            if (data.error) throw new Error(data.error.message || "Erreur API");
             const text = data.choices?.[0]?.message?.content || "Erreur de correction.";
             document.getElementById("reponse").innerHTML = text;
             currentCorrectionHTML = text;
@@ -249,6 +280,8 @@ RIGUEUR :
 
     function getFullHTML(correctionHTML) {
         const question = document.getElementById("question").value;
+        // Échapper la question pour éviter toute injection HTML
+        const safeQuestion = escapeHTML(question).replace(/\n/g, "<br>");
         return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>AfriGenius - Correction</title>
 <style>
@@ -260,7 +293,7 @@ td,th{border:1px solid #999;padding:6px;text-align:center;}
 </style></head>
 <body>
 <div class="header"><h1>🌍 AfriGenius Bot</h1><p>Programme officiel Togo</p></div>
-<h2>Exercice</h2><pre>${question.replace(/\n/g, "<br>")}</pre>
+<h2>Exercice</h2><pre>${safeQuestion}</pre>
 <h2>Correction</h2>${correctionHTML}
 </body></html>`;
     }
