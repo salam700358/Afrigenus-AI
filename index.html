@@ -28,11 +28,15 @@
         <button onclick="telechargerTXT()">📃 Texte</button>
     </div>
 
+    <!-- html2pdf pour le PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <script>
-        // URL de ton proxy Apps Script
-        const PROXY_URL = "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXX/exec";
+        // ==============================================================
+        // URL de ton proxy Apps Script (doit être accessible à "Tout le monde")
+        const PROXY_URL = "https://script.google.com/macros/s/AKfycbyyHUO5l-P1bHmrDdyclnljgU0MwsBnhhNarQiMWCewixflFuW0BgqjYjrPmD_jgwU_/exec";
+        // ==============================================================
+
         let currentCorrectionHTML = "";
 
         async function corriger() {
